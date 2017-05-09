@@ -15,44 +15,31 @@ from ros_pololu_servo.msg import MotorCommand as MC
 
 def LeftIR2Distance(signal):
     # crude linear interpolation, in inches
+    sigs = [80.0,84.0,89.0,99.0,106.0,115.0,129.0,144.0,160.0]
+    dists = [142.0,119.0,99.0,74.0,63.0,50.0,40.0,31.0,23.0]
     #print(signal)
-    if signal < 78:
+    if signal < sigs[0]:
 	# assume max distance
-	return(144.0)
-    elif signal < 83:
-	return((83.0-signal)/(83-78)*(144-112)+112)
-    elif signal < 96:
-	return((96.0-signal)/(96-83)*(112-74)+74)
-    elif signal < 103:
-	return((103.0-signal)/(103-96)*(74-61)+61)
-    elif signal < 122:
-	return((122.0-signal)/(122-103)*(61-39)+39)
-    elif signal < 143:
-	return((143.0-signal)/(143-122)*(39-29)+29)
-    elif signal < 157:
-	return((157.0-signal)/(157-143)*(29-22)+22)
-    # max sensitivity
-    return(22.0)
+        return(dists[0])
+    for i in xrange(1,len(sigs)):
+	if signal < sigs[i]:
+            return((sigs[i]-signal)/(sigs[i]-sigs[i-1])*(dists[i-1]-dists[i])+dists[i])
+    # max sensitivity:
+    return dists[-1]
 
 def RightIR2Distance(signal):
-    # crude linear interpolation, inches
-    if signal < 75:
+    # crude linear interpolation, in inches
+    sigs = [76.0,82.0,91.0,101.0,106.0,116.0,128.0,141.0,160.0]
+    dists = [142.0,119.0,99.0,74.0,63.0,50.0,40.0,31.0,22.0]
+    #print(signal)
+    if signal < sigs[0]:
 	# assume max distance
-	return(143.0)
-    elif signal < 81:
-	return((81.0-signal)/(81-75)*(143-113)+113)
-    elif signal < 87:
-	return((87.0-signal)/(87-81)*(113-88)+88)
-    elif signal < 96:
-	return((96.0-signal)/(96-87)*(88-70)+70)
-    elif signal < 108:
-	return((108.0-signal)/(108-96)*(70-55)+55)
-    elif signal < 129:
-	return((129.0-signal)/(129-108)*(55-37)+37)
-    elif signal < 154:
-	return((154.0-signal)/(154-129)*(37-24)+24)
-    # max snesitivity
-    return(22.0)
+        return(dists[0])
+    for i in xrange(1,len(sigs)):
+	if signal < sigs[i]:
+            return((sigs[i]-signal)/(sigs[i]-sigs[i-1])*(dists[i-1]-dists[i])+dists[i])
+    # max sensitivity:
+    return dists[-1]
 
 
 HISTORY = 4 # smooths responses, but also slows reaction, needs to be > 1
@@ -75,39 +62,60 @@ class SteeringDecider:
         self.dist_L = []
         self.dist_R = []
         self.oldest = 0
+        self.steering_last = 0
         self.minmove_L = []
         self.minmove_R = []
         self.minmove_old = 0
         self.coast_speed = 0.0
         self.min_speed = 0.0
         self.max_speed = 0.0
-        self.throttle = 0.0
+        self.throttle_in = 0.0
 
     def listen(self, msg):
         # message can have multiple motor states
         for state in msg.motor_states:
 	    if state.name == 'LeftIR':
 	        if len(self.dist_L) < HISTORY:
-	            self.dist_L.append(float(state.pulse))
+                    # only update on real signal
+                    if state.pulse:
+                        self.dist_L.append(float(state.pulse))
+                    else:
+                        print("No LeftIR signal")
+                        self.dist_L.append(self.dist_L[-1])
 	        else:
-	            self.dist_L[self.oldest] = float(state.pulse)
+                    # only update on real signal
+                    if state.pulse:
+                        self.dist_L[self.oldest] = float(state.pulse)
+                    else:
+                        print("No LeftIR signal")
+                        self.dist_L[self.oldest] = self.dist_L[(self.oldest-1)%HISTORY]
             elif state.name == 'RightIR':
 	        if len(self.dist_R) < HISTORY:
-	            self.dist_R.append(float(state.pulse))
+                    # only update on real signal
+                    if state.pulse:
+                        self.dist_R.append(float(state.pulse))
+                    else:
+                        print("No RightIR signal")
+                        self.dist_R.append(self.dist_R[-1])
 	        else:
-	            self.dist_R[self.oldest] = float(state.pulse)
+                    # only update on real signal
+                    if state.pulse:
+                        self.dist_R[self.oldest] = float(state.pulse)
+                    else:
+                        print("No RightIR signal")
+                        self.dist_R[self.oldest] = self.dist_R[(self.oldest-1)%HISTORY]
             elif state.name == "Throttle":
-                self.throttle = float(state.pulse)
+                self.throttle_in = float(state.pulse)
 	self.oldest = (self.oldest+1) % HISTORY
 	# algorithm for value that I think we should care about; may need sensativity tuning
         L = LeftIR2Distance(sum(self.dist_L)/len(self.dist_L))
         R = RightIR2Distance(sum(self.dist_R)/len(self.dist_R))
         value = (L-R)/(min(L,R)-BUFFER)
         # convert to -pi/4 to pi/4 turning radians
-        value = (1/(1+exp(STEERING_SENSITIVITY*value))-0.5)*pi/2
+        steering = (1/(1+exp(STEERING_SENSITIVITY*value))-0.5)*pi/2
 	# publish
         self.steering_setpoint_pub.publish(0.0)
-        self.steering_state_pub.publish(value)
+        self.steering_state_pub.publish(steering)
         ##########
         # throttle algorithm
         # goal is to go as fast as possible while still being able to make turns
@@ -125,22 +133,33 @@ class SteeringDecider:
         else:
             self.minmove_L[self.minmove_old] = L
             self.minmove_R[self.minmove_old] = R
-        self.minmove_old = (self.minmove_old + 1) % len(self.minmove_L)
+            self.minmove_old = (self.minmove_old + 1) % MINMOVE_ITERATIONS
         # decel if close to wall
-        if L < KILL_SOLO or R < KILL_SOLO or (L < KILL_DUAL and R < KILL_DUAL):
+        if self.coast_speed > self.min_speed and (L < KILL_SOLO or R < KILL_SOLO or
+                                                  (L < KILL_DUAL and R < KILL_DUAL)):
             self.coast_speed = self.min_speed
         # check for low change situation
         if max(abs(self.minmove_L[self.minmove_old]-L)/L,
                abs(self.minmove_R[self.minmove_old]-R)/R) < MINMOVE:
             # increase min speed until a move is first detected
             if self.min_speed >= self.coast_speed:
-                self.min_speed = 1/(1.0+self.coast_speed)
+                self.min_speed = self.coast_speed + 1/(1.0+self.coast_speed)
+                print("min = %f" % self.min_speed)
             # increase speed very very slowly
             self.coast_speed += 1/(1.0+self.coast_speed)
             #print("low change coast = %f" % self.coast_speed)
         else:
-            # plenty of momentum, choose speed based on how 
-            # one sensor is much 1.6x the other
+            # determine how much new turning is being suggested
+            #motive = (((abs(steering) - abs(self.steering_last))*2/pi + 0.5))
+                      #* (abs(steering)*4/pi))
+            motive = abs(self.steering)
+            print("motive = %f" % motive)
+            self.coast_speed += (-abs(self.coast_speed-self.min_speed)*0.1*motive
+                                 + (1-motive)*(1/(1.0+self.coast_speed)
+                                               +(self.max_speed-self.coast_speed)*0.1))
+        '''
+            # sufficient momentum
+            # one sensor is more than 1.6x the other
             if (L-R)/min(L,R) > 0.6:
                 #print("%f %f %f" %(L,R,(L-R)/min(L,R)))
                 # one wall is over double other wall, set to min speed and decay
@@ -149,21 +168,24 @@ class SteeringDecider:
             else:
                 # increase as long as steering is stable
                 # decay to min speed otherwise
-	        conflict = pow(1-abs(4/pi*value),2)
+	        conflict = pow(1-abs(4/pi*steering),2)
                 self.coast_speed += (-abs(self.coast_speed-self.min_speed)*0.01*(1-conflict)
                                      + conflict*(1/(1.0+self.coast_speed)
                                                  +(self.max_speed-self.min_speed)*0.01))
                 #print("weighted coast = %f" % self.coast_speed)
+        '''
+        self.steering_last = steering
+        print(self.coast_speed)
         # track max speed reached, decaying slowly over time
         if self.coast_speed > self.max_speed:
             self.max_speed = self.coast_speed
         else:
             self.max_speed = self.min_speed + 0.999*(self.max_speed-self.min_speed)
         # set throttle
-        value = THROTTLE_SENSITIVITY * self.coast_speed # * (0.5+0.5*(pi/4-abs(value)))
-        self.throttle_setpoint_pub.publish(value)
+        throttle = THROTTLE_SENSITIVITY * self.coast_speed # * (0.5+0.5*(pi/4-abs(steering)))
+        self.throttle_setpoint_pub.publish(throttle)
         self.throttle_state_pub.publish(0)
-        print(self.throttle)
+        print(self.throttle_in)
 
 
 def main():
