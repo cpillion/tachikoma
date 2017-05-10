@@ -67,8 +67,8 @@ class SteeringDecider:
         self.minmove_R = []
         self.minmove_old = 0
         self.coast_speed = 0.0
-        self.min_speed = 20
-        self.max_speed = 31.5
+        self.min_speed = 24
+        self.max_speed = 30#1.5
         self.throttle_in = 0.0
 
     def listen(self, msg):
@@ -135,27 +135,37 @@ class SteeringDecider:
             self.minmove_R[self.minmove_old] = R
             self.minmove_old = (self.minmove_old + 1) % MINMOVE_ITERATIONS
         # decel if close to wall
-        if self.coast_speed > self.min_speed and (L < KILL_SOLO or R < KILL_SOLO or
-                                                  (L < KILL_DUAL and R < KILL_DUAL)):
-            self.coast_speed = 0
-        # check for low change situation
-        '''
-        if max(abs(self.minmove_L[self.minmove_old]-L)/L,
-               abs(self.minmove_R[self.minmove_old]-R)/R) < MINMOVE:
+        if (L < KILL_SOLO or R < KILL_SOLO or
+            (L < KILL_DUAL and R < KILL_DUAL)):
+            if self.coast_speed > self.min_speed:
+                # drop out inverse to speed; build back up later
+                self.coast_speed = self.min_speed/self.coast_speed
+            elif max(abs(self.minmove_L[self.minmove_old]-L)/L,
+                     abs(self.minmove_R[self.minmove_old]-R)/R) < MINMOVE:
+                # increase speed very very slowly
+                self.coast_speed += 1/(1.0+self.coast_speed)
+            else:
+                self.coast_speed = 0
+            # check for low change situation
+        elif self.coast_speed < self.max_speed and (
+                max(abs(self.minmove_L[self.minmove_old]-L)/L,
+                    abs(self.minmove_R[self.minmove_old]-R)/R) < MINMOVE:
             # increase min speed until a move is first detected
+            '''
             if self.min_speed >= self.coast_speed:
-                #self.min_speed = self.coast_speed + 1/(1.0+self.coast_speed)
-                print("min = %f" % self.min_speed)
+            #self.min_speed = self.coast_speed + 1/(1.0+self.coast_speed)
+            print("min = %f" % self.min_speed)
+            '''
             # increase speed very very slowly
             self.coast_speed += 1/(1.0+self.coast_speed)
             #print("low change coast = %f" % self.coast_speed)
-        '''
         else:
             # determine how much new turning is being suggested
             #motive = (((abs(steering) - abs(self.steering_last))*2/pi + 0.5))
                       #* (abs(steering)*4/pi))
+            # linear interpolation between min and max based on steering
             motive = 1-abs(steering)*4/pi
-            print("motive = %f" % motive)
+            #print("motive = %f" % motive)
             self.coast_speed = self.min_speed + motive*(self.max_speed-self.min_speed)
         '''
 				(-abs(self.coast_speed-self.min_speed)
@@ -163,18 +173,20 @@ class SteeringDecider:
                                                +(self.max_speed-self.coast_speed)*0.1))
         '''
         self.steering_last = steering
-        print(self.coast_speed)
+        #print(self.coast_speed)
         # track max speed reached, decaying slowly over time
+        '''
         if self.coast_speed > self.max_speed:
             self.max_speed = self.coast_speed
 	    print(self.max_speed)
         else:
             self.max_speed = self.min_speed + 0.999*(self.max_speed-self.min_speed)
+        '''
         # set throttle
         throttle = THROTTLE_SENSITIVITY * self.coast_speed # * (0.5+0.5*(pi/4-abs(steering)))
         self.throttle_setpoint_pub.publish(throttle)
         self.throttle_state_pub.publish(0)
-        print(self.throttle_in)
+        #print(self.throttle_in)
 
 
 def main():
