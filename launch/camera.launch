@@ -14,11 +14,11 @@
       <param name="index" value="0"/>
       
       <!-- Image size and type -->
-      <param name="width" value="1280"/>
-      <param name="height" value="720"/>
+      <param name="width" value="640"/>
+      <param name="height" value="480"/>
       <!-- choose whichever uncompressed format the camera supports: -->
       <param name="video_mode" value="gray8"/> <!-- or yuyv/nv12/jpeg -->
-      <param name="frame_rate" value="60"/>
+      <param name="frame_rate" value="80"/>
 
       <param name="timestamp_method" value="start"/> <!-- start of frame -->
 

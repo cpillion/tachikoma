@@ -11,12 +11,10 @@ from nav_msgs.msg import Odometry
 class Pub:
     def __init__(self):
         self.imu_pub = rospy.Publisher('/imu_data', Imu, queue_size = 1)
-        self.odom_pub = rospy.Publisher('/odom', Odometry, queue_size = 1)
         self.imu_sub = rospy.Subscriber('/imu/data', Imu, self.listen)
 
     def listen(self, msg):
         temp = msg
-        self.odom_pub.publish(self.pub_odom_msg())
         temp.header.frame_id = 'base_footprint'
         temp.header.stamp = rospy.Time.now()
         self.imu_pub.publish(temp)
@@ -41,25 +39,7 @@ class Pub:
     #    msg.header.stamp = rospy.Time.now()
     #    self.imu_pub.publish(msg)
 
-    def pub_odom_msg(self):
-        msg2 = Odometry()
-        poseCov = [0.1, 0, 0, 0, 0, 0,
-                    0, 0.1, 0, 0, 0, 0,
-                    0, 0, 0.1, 0, 0, 0,
-                    0, 0, 0, 99999, 0, 0,
-                    0, 0, 0, 0, 99999, 0,
-                    0, 0, 0, 0, 0, 99999]
-        msg2.header.frame_id = 'base_footprint'
-        msg2.pose.pose.position.x = 0
-        msg2.pose.pose.position.y = 0
-        msg2.pose.pose.position.z = 0
-        msg2.pose.pose.orientation.x = 1
-        msg2.pose.pose.orientation.y = 0
-        msg2.pose.pose.orientation.z = 0
-        msg2.pose.pose.orientation.w = 0
-        msg2.pose.covariance = poseCov
-        msg2.header.stamp = rospy.Time.now()
-        return msg2
+ 
 
 def main():
     rospy.init_node('imu_node')

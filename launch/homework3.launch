@@ -1,5 +1,5 @@
 <launch>
-  <node pkg="homework3" type="imu.py" name="imu_node" output="screen">
+  <node pkg="tachikoma" type="imu.py" name="imu_node" output="screen">
   </node>
 
   <node pkg="robot_pose_ekf" type="robot_pose_ekf" name="robot_pose_ekf">
@@ -11,7 +11,6 @@
     <param name="imu_used" value="true"/>
     <param name="vo_used" value="false"/>
     <param name="self_diagnose" value="false"/>
-    <!--
-    <remap from="odom" to="pr2_base_odometry/odom" />-->
+
   </node>
 </launch>

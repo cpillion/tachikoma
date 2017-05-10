@@ -48,7 +48,7 @@ STEERING_SENSITIVITY = 0.5 # rescaling factor
 
 MINMOVE_ITERATIONS = 20 #
 MINMOVE            = 0.05 # fractional amount
-THROTTLE_SENSITIVITY = 0.05 # rescaling factor
+THROTTLE_SENSITIVITY = 0.02 # rescaling factor
 KILL_SOLO          = 25
 KILL_DUAL          = 40
 
@@ -67,8 +67,8 @@ class SteeringDecider:
         self.minmove_R = []
         self.minmove_old = 0
         self.coast_speed = 0.0
-        self.min_speed = 0.0
-        self.max_speed = 0.0
+        self.min_speed = 20.0
+        self.max_speed = 40.0
         self.throttle_in = 0.0
 
     def listen(self, msg):
@@ -143,7 +143,7 @@ class SteeringDecider:
                abs(self.minmove_R[self.minmove_old]-R)/R) < MINMOVE:
             # increase min speed until a move is first detected
             if self.min_speed >= self.coast_speed:
-                self.min_speed = self.coast_speed + 1/(1.0+self.coast_speed)
+                #self.min_speed = self.coast_speed + 1/(1.0+self.coast_speed)
                 print("min = %f" % self.min_speed)
             # increase speed very very slowly
             self.coast_speed += 1/(1.0+self.coast_speed)
@@ -152,33 +152,20 @@ class SteeringDecider:
             # determine how much new turning is being suggested
             #motive = (((abs(steering) - abs(self.steering_last))*2/pi + 0.5))
                       #* (abs(steering)*4/pi))
-            motive = abs(self.steering)
+            motive = 1-abs(steering)*4/pi
             print("motive = %f" % motive)
-            self.coast_speed += (-abs(self.coast_speed-self.min_speed)*0.1*motive
+            self.coast_speed = self.min_speed + motive*(self.max_speed-self.min_speed)
+        '''
+				(-abs(self.coast_speed-self.min_speed)
                                  + (1-motive)*(1/(1.0+self.coast_speed)
                                                +(self.max_speed-self.coast_speed)*0.1))
-        '''
-            # sufficient momentum
-            # one sensor is more than 1.6x the other
-            if (L-R)/min(L,R) > 0.6:
-                #print("%f %f %f" %(L,R,(L-R)/min(L,R)))
-                # one wall is over double other wall, set to min speed and decay
-                self.coast_speed = 0.99*min(self.coast_speed, self.min_speed)
-                #print("double coast = %f" % self.coast_speed)
-            else:
-                # increase as long as steering is stable
-                # decay to min speed otherwise
-	        conflict = pow(1-abs(4/pi*steering),2)
-                self.coast_speed += (-abs(self.coast_speed-self.min_speed)*0.01*(1-conflict)
-                                     + conflict*(1/(1.0+self.coast_speed)
-                                                 +(self.max_speed-self.min_speed)*0.01))
-                #print("weighted coast = %f" % self.coast_speed)
         '''
         self.steering_last = steering
         print(self.coast_speed)
         # track max speed reached, decaying slowly over time
         if self.coast_speed > self.max_speed:
             self.max_speed = self.coast_speed
+	    print(self.max_speed)
         else:
             self.max_speed = self.min_speed + 0.999*(self.max_speed-self.min_speed)
         # set throttle
