@@ -25,6 +25,7 @@ class Aruco_SUB:
         self.setpoint_angle_pub = rospy.Publisher('setpoint', Float64, queue_size = 1)
         self.state_angle_pub = rospy.Publisher('state', Float64, queue_size = 1)
         #self.setpoint_pub(128/512-pi/4)
+        self.dist_pub = rospy.Publisher("aruco_single/distance", Float64, queue_size = 1)
 
     def listen(self, msg):
 #        quaternion = [0, 0, 0, 0]
@@ -43,6 +44,7 @@ class Aruco_SUB:
         #self.state_pos_pub.publish(z)
         self.setpoint_angle_pub.publish(0)
         self.state_angle_pub.publish(x - (0.531*z+0.02043))
+        self.dist_pub.publish(z)
 
 def main():
     rospy.init_node('setpoint_node')
