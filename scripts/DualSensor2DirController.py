@@ -48,7 +48,7 @@ STEERING_SENSITIVITY = 0.5 # rescaling factor
 
 MINMOVE_ITERATIONS = 20 #
 MINMOVE            = 0.05 # fractional amount
-THROTTLE_SENSITIVITY = 0.02 # rescaling factor
+THROTTLE_SENSITIVITY = 0.005 # rescaling factor
 KILL_SOLO          = 25
 KILL_DUAL          = 40
 
@@ -67,8 +67,8 @@ class SteeringDecider:
         self.minmove_R = []
         self.minmove_old = 0
         self.coast_speed = 0.0
-        self.min_speed = 20.0
-        self.max_speed = 40.0
+        self.min_speed = 20
+        self.max_speed = 31.5
         self.throttle_in = 0.0
 
     def listen(self, msg):
@@ -137,8 +137,9 @@ class SteeringDecider:
         # decel if close to wall
         if self.coast_speed > self.min_speed and (L < KILL_SOLO or R < KILL_SOLO or
                                                   (L < KILL_DUAL and R < KILL_DUAL)):
-            self.coast_speed = self.min_speed
+            self.coast_speed = 0
         # check for low change situation
+        '''
         if max(abs(self.minmove_L[self.minmove_old]-L)/L,
                abs(self.minmove_R[self.minmove_old]-R)/R) < MINMOVE:
             # increase min speed until a move is first detected
@@ -148,6 +149,7 @@ class SteeringDecider:
             # increase speed very very slowly
             self.coast_speed += 1/(1.0+self.coast_speed)
             #print("low change coast = %f" % self.coast_speed)
+        '''
         else:
             # determine how much new turning is being suggested
             #motive = (((abs(steering) - abs(self.steering_last))*2/pi + 0.5))
